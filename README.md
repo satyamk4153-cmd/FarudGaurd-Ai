@@ -75,8 +75,8 @@ React 18 + Vite               FastAPI Gateway
 ### Step 1 — Clone the repository
 
 ```bash
-git clone https://github.com/raghavbhatnagar2207/FRAUDGUARD-AI.git
-cd FRAUDGUARD-AI
+git clone https://github.com/satyamk4153-cmd/FarudGaurd-Ai.git
+cd FarudGaurd-Ai
 ```
 
 ### Step 2 — Backend setup
