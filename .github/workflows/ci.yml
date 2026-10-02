@@ -78,6 +78,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Validate Docker Compose Configuration
+        env:
+          POSTGRES_PASSWORD: ci_test_postgres_password_non_prod
+          JWT_SECRET_KEY: ci_test_jwt_secret_key_32_characters_minimum
         run: docker compose config
 
       - name: Build Backend Container
