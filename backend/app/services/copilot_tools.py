@@ -239,6 +239,8 @@ class CopilotTools:
         if not active_model:
             return {
                 "model_name": cached_model_name,
+                "algorithm": engine.model_info.get("algorithm", "XGBoost"),
+                "version": engine.model_info.get("version", "v1.0"),
                 "status": "LOADED_FROM_DISK",
                 "notes": "Model loaded into memory cache from pre-trained artifacts.",
             }

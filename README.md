@@ -1,5 +1,6 @@
 # FraudGuard AI — Financial Fraud Risk Analytics & Investigation Platform
 
+[![CI/CD](https://github.com/raghavbhatnagar2207/FRAUDGUARD-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/raghavbhatnagar2207/FRAUDGUARD-AI/actions/workflows/ci.yml)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-18.3+-61DAFB.svg?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5+-3178C6.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
@@ -7,184 +8,310 @@
 [![SHAP](https://img.shields.io/badge/SHAP-TreeExplainer-4B0082.svg)](https://shap.readthedocs.io)
 [![Gemini](https://img.shields.io/badge/Google_Gemini-2.5_Flash-4285F4.svg?logo=google&logoColor=white)](https://ai.google.dev)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg?logo=postgresql&logoColor=white)](https://www.postgresql.org)
-[![Celery](https://img.shields.io/badge/Celery-5.6-37814A.svg?logo=celery&logoColor=white)](https://docs.celeryq.dev)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-1.6.1-F7931E.svg?logo=scikit-learn&logoColor=white)](https://scikit-learn.org)
 
-FraudGuard is an explainable machine-learning-based financial fraud risk analytics and investigation platform with anomaly detection, model governance, and a grounded Google Gemini analyst assistant.
-
----
-
-## 1. Two-Layer AI Architecture Invariant
-
-FraudGuard strictly bifurcates its artificial intelligence responsibilities into two distinct, decoupled layers:
-
-### Layer 1: Core Fraud Intelligence (Authoritative Decision Engine)
-- **Technologies:** XGBoost (Champion), LightGBM, Random Forest, Logistic Regression, Isolation Forest, SHAP.
-- **Responsibilities:** Evaluates feature vectors, computes fraud probabilities, scores unsupervised anomalies, calculates composite risk indices (0–100), and outputs exact Shapley feature attributions.
-- **Rule:** **Determines all fraud probabilities and decisions.** Gemini never calculates fraud probability and never overrides the ML model.
-
-### Layer 2: Generative Analyst Assistant (Google Gemini Copilot)
-- **Technologies:** Google Gemini API (`google-genai` official Python SDK) with 16 safe read-only backend tools.
-- **Responsibilities:** Answers analyst queries in natural language, drafts investigation case summaries, retrieves forensic transaction dossiers, explains model metrics, and renders grounded evidence cards.
-- **Rule:** **Read-only analyst assistance only.** Does not execute arbitrary SQL, does not perform database writes, and does not alter permissions or roles.
+FraudGuard is an explainable machine-learning financial fraud risk analytics and investigation platform. It combines a multi-model ML ensemble, SHAP explainability, anomaly detection, model governance, and a grounded Google Gemini analyst assistant.
 
 ---
 
-## 2. Key Benchmarks & Engineering Highlights
+## Table of Contents
 
-- **Champion ML Performance:** Evaluated on an out-of-time test set: **0.9613 F1-Score**, **0.9997 ROC-AUC**, **0.9921 PR-AUC** at an mathematically optimized decision threshold ($\tau = 0.75$).
-- **Sub-10ms Inference Pipeline:** In-memory pre-warmed model singleton measuring genuine pipeline latencies (`preprocessing_ms`, `inference_ms`, `shap_ms`, `total_ms`) without synthetic timers.
-- **Supports Explainability and Analyst Transparency:** Every single transaction decision is backed by mathematical local SHAP feature attributions providing clear decision visibility for investigators.
-- **Grounded Gemini Assistant:** Communicates through 16 safe, read-only tools (`get_transaction`, `get_shap_explanation`, `get_highest_risk_transactions`, etc.) with prompt injection defenses and automated fallback to `MockGeminiClient`.
-- **Asynchronous Heavy Processing:** Celery + Redis distributed worker pool handling large batch CSV processing, model retraining, and population drift calculations with status polling (`QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`).
-- **Enterprise Persistence & Migrations:** Full support for **PostgreSQL 16** with SQLAlchemy connection pooling in production and zero-dependency SQLite in local development, versioned through **Alembic**.
-- **Security Hardening:** Bcrypt password hashing (work factor 12), PyJWT tokens with production entropy validation, strict public signup restrictions (USER only, no privilege escalation), CSV formula injection defenses, and defensive HTTP security headers (`nosniff`, `DENY`).
+1. [Architecture](#architecture)
+2. [Prerequisites](#prerequisites)
+3. [Running on a Fresh Computer — Step-by-Step](#running-on-a-fresh-computer--step-by-step)
+4. [Environment Variables](#environment-variables)
+5. [Database Initialization & Migrations](#database-initialization--migrations)
+6. [ML Model Setup](#ml-model-setup)
+7. [Running the Application](#running-the-application)
+8. [Running Tests](#running-tests)
+9. [Docker Setup](#docker-setup)
+10. [Demo Accounts](#demo-accounts)
+11. [Common Errors & Solutions](#common-errors--solutions)
+12. [CI/CD Pipeline](#cicd-pipeline)
 
 ---
 
-## 3. High-Level Architecture
+## Architecture
 
 ```
-                 CLIENT / ANALYST BROWSER
-                            │
-                            ▼
-              Reverse Proxy: Nginx (Port 80/443)
-              ┌─────────────┴─────────────┐
-              │ Static SPA                │ /api/* & /ws/*
-              ▼                           ▼
-      React 18 + Vite               FastAPI Gateway
-     (Vanilla CSS / Tailwind)     (Python 3.12 Core)
-                                          │
-                    ┌─────────────────────┼─────────────────────┐
-                    ▼                     ▼                     ▼
-          [ Layer 1: Core ML ]    [ Infrastructure ]    [ Layer 2: Copilot ]
-          - Feature Scaler        - PostgreSQL 16 DB    - Google Gemini 2.5
-          - XGBoost Champion      - Redis 7 Broker      - 16 Read-Only Tools
-          - Isolation Forest      - Celery Workers      - Forensic Evidence
-          - SHAP Explainer        - Alembic Migrations  - Strict Grounding
+          CLIENT / ANALYST BROWSER
+                      │
+                      ▼
+        Reverse Proxy: Nginx (Port 80/443)
+        ┌─────────────┴─────────────┐
+        │ Static SPA                │ /api/* & /ws/*
+        ▼                           ▼
+React 18 + Vite               FastAPI Gateway
+(TypeScript / Vanilla CSS)    (Python 3.12 Core)
+                                      │
+            ┌─────────────────────────┼───────────────────────┐
+            ▼                         ▼                       ▼
+  [ Layer 1: Core ML ]     [ Infrastructure ]     [ Layer 2: Copilot ]
+  - Feature Scaler          - PostgreSQL 16 DB     - Google Gemini 2.5
+  - XGBoost Champion        - Redis 7 Broker       - 16 Read-Only Tools
+  - Isolation Forest        - Celery Workers       - Forensic Evidence
+  - SHAP Explainer          - Alembic Migrations   - Strict Grounding
 ```
+
+**Key design rule:** Layer 1 (XGBoost + Isolation Forest) exclusively produces all fraud probabilities. Layer 2 (Gemini Copilot) only reads data via 16 safe backend tools and never executes SQL writes or alters roles.
 
 ---
 
-## 4. Quick Start (Local Development)
+## Prerequisites
 
-### Prerequisites
-- Python 3.10+ (Tested on Python 3.12)
-- Node.js 18+ (Tested on Node.js v20/v24)
-- Git
+| Requirement | Minimum | Tested With |
+|---|---|---|
+| Python | 3.10 | 3.12, 3.13 |
+| Node.js | 18 | 20, 24 |
+| Git | Any | — |
+| Docker + Docker Compose | Optional | Docker Desktop 4.x |
 
-### 1. Backend Setup
+> **Windows users:** Use PowerShell or Git Bash. The project is fully portable across Windows and Linux.
+
+---
+
+## Running on a Fresh Computer — Step-by-Step
+
+### Step 1 — Clone the repository
+
 ```bash
-# Clone repository
 git clone https://github.com/raghavbhatnagar2207/FRAUDGUARD-AI.git
 cd FRAUDGUARD-AI
+```
 
-# Create and activate Python virtual environment
+### Step 2 — Backend setup
+
+```powershell
+# Windows
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
+.\.venv\Scripts\activate
+
+# macOS / Linux
+python3 -m venv .venv
 source .venv/bin/activate
+```
 
-# Install backend dependencies
+```bash
 pip install -r backend/requirements.txt
+```
 
-# Run database migrations
+> **Important:** `requirements.txt` pins `scikit-learn==1.6.1`. This version must match the serialized model artifacts in `ml/artifacts/`. Do not upgrade scikit-learn without retraining the models.
+
+### Step 3 — Configure environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+- Set `JWT_SECRET_KEY` to any random 32+ character string for local dev.
+- Leave `GEMINI_API_KEY` empty to use the deterministic mock Copilot (fully functional without a key).
+- Leave `DATABASE_URL` as the default SQLite path for local development.
+
+### Step 4 — Initialize the database
+
+```bash
+# Run Alembic migrations + create schema
 python scripts/migrate.py
 
-# Seed demo users and baseline transaction records (LOCAL DEMO ONLY)
+# Seed demo users (admin/analyst/user), 2500 synthetic transactions, ML scores, alerts
 python scripts/seed_demo_data.py
-
-# Launch FastAPI server
-python scripts/start_app.py
 ```
-- API Docs: `http://127.0.0.1:8000/docs`
-- Healthcheck: `http://127.0.0.1:8000/health`
-- Deep Readiness: `http://127.0.0.1:8000/ready`
 
-### 2. Frontend Setup
+This creates `fraudguard.db` in the project root with all demo data.
+
+### Step 5 — Frontend setup
+
 ```bash
 cd frontend
 npm install
+cd ..
+```
+
+### Step 6 — Start the application
+
+**Backend (Terminal 1):**
+```bash
+python scripts/start_app.py
+```
+- API Docs: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
+- Readiness: http://127.0.0.1:8000/ready
+
+**Frontend (Terminal 2):**
+```bash
+cd frontend
 npm run dev
 ```
-- Web Application: `http://localhost:5173`
+- Web UI: http://localhost:5173
 
 ---
 
-## 5. Production Multi-Container Docker Deployment
+## Environment Variables
 
-The platform is orchestrated via `docker-compose.yml`:
+All environment variables are documented in [`.env.example`](.env.example). Key variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENVIRONMENT` | `development` | `development` or `production` |
+| `DATABASE_URL` | `sqlite:///./fraudguard.db` | SQLite (dev) or PostgreSQL URL (prod) |
+| `JWT_SECRET_KEY` | *(must set)* | Min 32 chars. Enforced in production. |
+| `GEMINI_API_KEY` | `""` | Leave blank to use MockGeminiClient (no real API calls) |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
+| `MODEL_DIRECTORY` | `ml/artifacts` | Path to `.joblib` model artifacts |
+| `REDIS_URL` | `redis://localhost:6379/0` | Required for Celery batch jobs |
+| `CORS_ORIGINS` | *(localhost ports)* | Comma-separated allowed origins |
+
+> **Security note:** Never commit a real `.env` file. The `.gitignore` excludes `.env` and all `*.db` files. Only `.env.example` is committed.
+
+---
+
+## Database Initialization & Migrations
+
+FraudGuard uses **Alembic** for schema versioning and supports both SQLite (development) and PostgreSQL (production).
 
 ```bash
-# 1. Prepare environment variables
-cp .env.example .env
-# Set strong POSTGRES_PASSWORD, JWT_SECRET_KEY, and optional GEMINI_API_KEY in .env
+# Apply all pending migrations
+python scripts/migrate.py
 
-# 2. Build and launch all services in detached mode
-docker compose up --build -d
+# Or directly via Alembic
+alembic upgrade head
 
-# 3. Check health and running status
-docker compose ps
+# Create a new migration after model changes
+alembic revision --autogenerate -m "describe your change"
 ```
 
-Services provisioned:
-- `fraudguard-frontend`: Nginx serving optimized React 18 production bundle (Port 80)
-- `fraudguard-backend`: FastAPI application and ML inference gateway (Internal Port 8000)
-- `fraudguard-postgres`: PostgreSQL 16 database (Internal Port 5432, not published publicly)
-- `fraudguard-redis`: Redis 7 message broker and cache (Internal Port 6379, not published publicly)
-- `fraudguard-worker`: Celery distributed background worker container
+On a fresh database, the app automatically:
+1. Creates all tables via Alembic migrations.
+2. Seeds feature metadata.
+3. Seeds the champion `ModelVersion` record from `ml/artifacts/model_registry.json`.
+4. Seeds demo users (via `seed_demo_data.py`).
 
 ---
 
-## 6. Evaluation & Viva Demo Accounts (LOCAL DEMO ONLY)
+## ML Model Setup
 
-> [!NOTE]
-> These credentials are generated by the local seed script (`scripts/seed_demo_data.py`) exclusively for local development, academic viva, and demonstration purposes. In production environments, credentials must be generated securely and never shared.
+Pre-trained model artifacts are committed to the repository under `ml/artifacts/`:
 
-| Role | Email | Password | Permissions & Purpose |
-| :--- | :--- | :--- | :--- |
-| **System Admin** | `admin@fraudguard.ai` | `Admin@123456` | Model governance, user role elevation, audit logs |
-| **Fraud Analyst** | `analyst@fraudguard.ai` | `Analyst@123456` | Transaction forensics, alert triage, investigation cases |
-| **Viewer / User** | `user@fraudguard.ai` | `User@123456` | Read-only dashboard, real-time transaction scoring |
+| File | Description |
+|---|---|
+| `xgboost_v1.joblib` | Champion XGBoost fraud classifier (99.97% ROC-AUC) |
+| `lightgbm_v1.joblib` | Challenger LightGBM model |
+| `randomforest_v1.joblib` | Random Forest ensemble |
+| `logisticregression_v1.joblib` | Logistic Regression baseline |
+| `isolation_forest_v1.joblib` | Unsupervised anomaly detector |
+| `scaler.joblib` | StandardScaler for feature normalization |
+| `shap_explainer.joblib` | SHAP TreeExplainer for local attributions |
+| `model_registry.json` | Model manifest (active model, thresholds, metrics) |
+
+> **scikit-learn version:** All `.joblib` artifacts were serialized with **scikit-learn 1.6.1**. The requirements pin this version. If you see `InconsistentVersionWarning`, your scikit-learn version does not match — reinstall: `pip install scikit-learn==1.6.1`.
+
+If model files are missing, the InferenceEngine logs a warning and the `/ready` endpoint returns `"model_engine": "UNAVAILABLE"`. To retrain: `python ml/training/train.py`.
 
 ---
 
-## 7. Verification & Automated Test Suites
+## Running Tests
 
 ```bash
-# Run backend pytest suite (21 unit, integration, and security tests)
+# Run the full backend pytest suite (29 tests)
 python -m pytest backend/tests/ -v
 
-# Run frontend Vitest suite (15 unit tests)
+# Run only the two previously failing tests
+python -m pytest backend/tests/test_api.py::test_login_and_authenticated_routes \
+                   backend/tests/test_gemini.py::test_copilot_tools_read_only_execution -v
+
+# Frontend unit tests (Vitest)
 cd frontend && npm test
 
-# Run frontend TypeScript typecheck
+# Frontend TypeScript typecheck
 cd frontend && npm run typecheck
 
-# Run full frontend production build
+# Frontend production build
 cd frontend && npm run build
-
-# Run API & reverse proxy integration verification suite (60 passed checks)
-node scripts/api_integration_verification.mjs
 ```
 
+Expected backend results: **29 passed, 0 failed**.
+
 ---
 
-## 8. Complete Project Documentation
+## Docker Setup
 
-- [Release Candidate Audit & Verification Report](docs/final-release-audit.md)
-- [Gemini Analyst Copilot & Generative AI Architecture](docs/gemini-copilot.md)
-- [Final System Architecture & Diagrams](docs/final-architecture.md)
-- [Viva & Technical Defense Preparation (22 Questions & Answers)](docs/viva-notes.md)
-- [Production Deployment & Disaster Recovery Operations](docs/deployment.md)
-- [Security Architecture & Hardening Guide](docs/security.md)
-- [Machine Learning & Explainability Pipeline](docs/ml-pipeline.md)
+```bash
+# 1. Copy and configure environment
+cp .env.example .env
+# Edit .env: set JWT_SECRET_KEY, GEMINI_API_KEY (optional), POSTGRES_PASSWORD
+
+# 2. Build and start all services
+docker compose up --build -d
+
+# 3. Check service health
+docker compose ps
+curl http://localhost:8000/health
+```
+
+Services:
+- `fraudguard-frontend`: Nginx + React SPA (Port 80)
+- `fraudguard-backend`: FastAPI + ML engine (Internal 8000)
+- `fraudguard-postgres`: PostgreSQL 16 (Internal 5432)
+- `fraudguard-redis`: Redis 7 (Internal 6379)
+- `fraudguard-worker`: Celery worker
+
+---
+
+## Demo Accounts
+
+> These credentials are seeded by `scripts/seed_demo_data.py` for **local development and demonstration only**. Never use these in production.
+
+| Role | Email | Password | Capabilities |
+|---|---|---|---|
+| **System Admin** | `admin@fraudguard.ai` | `Admin@123456` | User management, model governance, audit logs |
+| **Fraud Analyst** | `analyst@fraudguard.ai` | `Analyst@123456` | Transaction forensics, alert triage, investigations |
+| **Viewer** | `user@fraudguard.ai` | `User@123456` | Read-only dashboard, transaction scoring |
+
+---
+
+## Common Errors & Solutions
+
+| Error | Cause | Fix |
+|---|---|---|
+| `ModuleNotFoundError: No module named 'backend'` | Running pytest without `PYTHONPATH` set | Run from the project root: `python -m pytest backend/tests/` |
+| `InconsistentVersionWarning: scikit-learn 1.6.1 vs 1.9.x` | Wrong scikit-learn version | `pip install scikit-learn==1.6.1` |
+| `assert 0 >= 3000` in `test_login_and_authenticated_routes` | Empty database in CI | Run `python scripts/seed_demo_data.py` or the conftest now auto-seeds |
+| `assert 'algorithm' in {...}` in `test_copilot_tools_read_only_execution` | No `ModelVersion` row in DB | Fixed in `init_db`: champion model is now auto-seeded from `model_registry.json` |
+| `UNIQUE constraint failed: transactions.external_transaction_id` | Seeding into a DB that already has transactions | Conftest now uses ID offsets to avoid collisions |
+| `InferenceEngine artifacts are not loaded` | Missing `.joblib` files | Check `ml/artifacts/` — all files must be present |
+| `Redis connection refused` | Redis not running | Start Redis locally or set `REDIS_URL` to an available instance. Batch jobs require Redis; single predictions do not. |
+| `GEMINI_API_KEY not configured` | Missing API key | The app uses `MockGeminiClient` automatically — no key needed for local dev |
+| Frontend: `npm ci` fails | Missing `package-lock.json` | Run `npm install` once to generate it |
+| `alembic.ini not found` | Running from wrong directory | Always run commands from the repository root |
+
+---
+
+## CI/CD Pipeline
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push to `main`, `master`, or `develop`:
+
+1. **Frontend Validation** — TypeScript typecheck, Vitest unit tests, production build
+2. **Backend & ML Testing** — Full pytest suite (29 tests) against a fresh SQLite database
+3. **Docker Build Verification** — Builds both backend and frontend Docker images (runs after both above jobs pass)
+
+The backend CI job sets:
+- `PYTHONPATH=$GITHUB_WORKSPACE` — ensures `import backend.*` works without installation
+- `DATABASE_URL=sqlite:///./fraudguard_test.db` — fresh test database
+- `scikit-learn==1.6.1` — pinned to match model artifact serialization version
+
+---
+
+## Complete Project Documentation
+
+- [Gemini Analyst Copilot Architecture](docs/gemini-copilot.md)
+- [ML Pipeline & Explainability](docs/ml-pipeline.md)
+- [Security Architecture & Hardening](docs/security.md)
 - [Database Schema & Data Dictionary](docs/database.md)
+- [Production Deployment & Disaster Recovery](docs/deployment.md)
 
 ---
 
-## 9. Regulatory & Legal Disclaimer
+## Regulatory Disclaimer
 
-*FraudGuard is an explainable machine-learning-based financial fraud risk analytics and investigation platform with anomaly detection, model governance, and a grounded Google Gemini analyst assistant. It is designed for educational, research, and portfolio demonstration purposes. It is not bank-certified, PCI-DSS certified, or regulator-approved, and is not suitable for handling live customer banking financial data without independent security, operational, and regulatory compliance audits.*
-# FarudGaurd-Ai
+*FraudGuard is an explainable ML-based financial fraud risk analytics platform designed for educational, research, and portfolio demonstration purposes. It is not bank-certified, PCI-DSS certified, or regulator-approved, and is not suitable for handling live customer banking data without independent security, operational, and regulatory compliance audits.*

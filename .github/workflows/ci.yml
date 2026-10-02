@@ -48,6 +48,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install Backend & ML Dependencies
         run: |
@@ -61,8 +62,9 @@ jobs:
           DATABASE_URL: sqlite:///./fraudguard_test.db
           JWT_SECRET_KEY: test_secret_key_for_continuous_integration_testing_32chars_min
           GEMINI_API_KEY: ""
+          PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest backend/tests/ -v
+          pytest backend/tests/ -v --tb=short
 
   docker-build-verification:
     name: Multi-Container Docker Build Verification
@@ -73,7 +75,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: actions/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3
 
       - name: Validate Docker Compose Configuration
         run: docker compose config

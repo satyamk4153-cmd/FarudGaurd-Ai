@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 from sqlalchemy.orm import Session
@@ -5,6 +6,9 @@ from backend.app.db.session import engine, Base
 import backend.app.models as models
 
 logger = logging.getLogger(__name__)
+
+# Project root  (backend/app/db/init_db.py → 4 levels up)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 INITIAL_FEATURES = [
     {"name": "amount", "data_type": "float", "category": "Transaction", "description": "Transaction currency amount", "is_derived": False, "importance_score": 0.28},
@@ -15,6 +19,7 @@ INITIAL_FEATURES = [
     {"name": "ip_risk", "data_type": "float", "category": "Entity", "description": "IP reputation risk index", "is_derived": False, "importance_score": 0.06},
     {"name": "account_age_days", "data_type": "int", "category": "Behavioral", "description": "Age of customer account in days", "is_derived": False, "importance_score": 0.04},
 ]
+
 
 def run_migrations() -> None:
     """Run Alembic database migrations programmatically to head revision."""
@@ -38,16 +43,64 @@ def run_migrations() -> None:
             raise RuntimeError(f"Production migration failure: {e}") from e
         logger.warning(f"Alembic migration runner noticed: {e}. Falling back to metadata creation.")
 
+
+def seed_champion_model_version(db: Session) -> None:
+    """Seed the champion ModelVersion record from the on-disk model_registry.json manifest.
+
+    This ensures the model_versions table is never empty so tools like
+    ``get_model_information`` always return a complete schema (including the
+    ``algorithm`` field) even on a freshly-initialised database (e.g. CI).
+    """
+    existing = db.query(models.ModelVersion).count()
+    if existing > 0:
+        logger.debug("ModelVersion rows already present – skipping champion seed.")
+        return
+
+    manifest_path = _PROJECT_ROOT / "ml" / "artifacts" / "model_registry.json"
+    if not manifest_path.exists():
+        logger.warning(
+            f"model_registry.json not found at {manifest_path}. "
+            "Skipping champion ModelVersion seed."
+        )
+        return
+
+    try:
+        with open(manifest_path, "r") as fh:
+            manifest = json.load(fh)
+        active = manifest.get("active_model", {})
+
+        champion = models.ModelVersion(
+            name=active.get("name", "FraudGuard XGBoost Champion"),
+            algorithm=active.get("algorithm", "XGBoost"),
+            version=active.get("version", "v1.0"),
+            status=models.ModelStatus.ACTIVE,
+            artifact_path=str(
+                _PROJECT_ROOT / "ml" / "artifacts" / active.get("artifact_file", "xgboost_v1.joblib")
+            ),
+            threshold=float(active.get("threshold", 0.75)),
+        )
+        db.add(champion)
+        db.commit()
+        db.refresh(champion)
+        logger.info(
+            f"Seeded champion ModelVersion: {champion.name} "
+            f"({champion.algorithm} {champion.version})"
+        )
+    except Exception as exc:
+        logger.warning(f"Could not seed champion ModelVersion: {exc}")
+        db.rollback()
+
+
 def init_db(db: Session = None) -> None:
     """Create all tables and seed required initial metadata."""
     from backend.app.core.config import settings
     logger.info("Initializing database tables...")
     run_migrations()
-    
+
     # In production, schema must be strictly managed by Alembic, never silent create_all
     if settings.ENVIRONMENT != "production":
         Base.metadata.create_all(bind=engine)
-    
+
     if db:
         # Seed initial feature metadata if empty
         existing_features = db.query(models.FeatureMetadata).count()
@@ -64,6 +117,10 @@ def init_db(db: Session = None) -> None:
                 db.add(meta)
             db.commit()
             logger.info("Initialized feature metadata catalog.")
+
+        # Seed champion model version record (needed for Copilot get_model_information)
+        seed_champion_model_version(db)
+
 
 if __name__ == "__main__":
     from backend.app.db.session import SessionLocal
