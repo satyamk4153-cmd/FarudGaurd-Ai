@@ -187,3 +187,4 @@ node scripts/api_integration_verification.mjs
 ## 9. Regulatory & Legal Disclaimer
 
 *FraudGuard is an explainable machine-learning-based financial fraud risk analytics and investigation platform with anomaly detection, model governance, and a grounded Google Gemini analyst assistant. It is designed for educational, research, and portfolio demonstration purposes. It is not bank-certified, PCI-DSS certified, or regulator-approved, and is not suitable for handling live customer banking financial data without independent security, operational, and regulatory compliance audits.*
+# FarudGaurd-Ai
